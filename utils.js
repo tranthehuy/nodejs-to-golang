@@ -6,6 +6,7 @@ const TYPES = {
   VariableDeclaration: 'VariableDeclaration',
   ExpressionStatement: 'ExpressionStatement',
   CallExpression: 'CallExpression',
+  Literal: 'Literal'
 }
 
 const ERRORS = {
@@ -16,6 +17,18 @@ const logger = {
   info: console.log
 }
 
+const buildConsoleLogStatement = (element) => {
+  const objectName = _.get(element, 'expression.callee.object.name', '');
+  const propertyName = _.get(element, 'expression.callee.property.name', '');
+  if (objectName === 'console' && propertyName === 'log') {
+    const arguments = _.get(element, 'expression.arguments', []);
+    const argument = arguments.map(arg => arg.type === TYPES.Literal ? `"${arg.value}"` : arg.name);
+    result = `fmt.Println(${argument.join(',')})`;
+    return result;
+  }
+  return '';
+}
+
 const convertElementToLine = (element) => {
   let result = '';
   switch (element && element.type) {
@@ -23,8 +36,7 @@ const convertElementToLine = (element) => {
       const objectName = _.get(element, 'expression.callee.object.name', '');
       const propertyName = _.get(element, 'expression.callee.property.name', '');
       if (objectName === 'console' && propertyName === 'log') {
-        const argument0 = _.get(element, 'expression.arguments[0].value', '');
-        result = `fmt.Println("${argument0}")`;
+        result = buildConsoleLogStatement(element);
       }
       break;      
   }
@@ -43,8 +55,8 @@ const convertProgramElementToCode = (element) => {
   const sourceCode = lines.join("\n  ");
 
   const result = `
-package main
-import "fmt"
+package main\n
+import "fmt"\n
 func main() {
 ${sourceCode}
 }
