@@ -10,6 +10,6 @@ fs.readFile('./source/index.js', 'utf8', function(err, program) {
   console.log('Tree: \n', astStr);
   const sourceCode = utils.convertToFile(astTree, './dest/main.go');
 
-  console.log('SourceCode: \n', sourceCode);
+  // console.log('SourceCode: \n', sourceCode);
 });
 

@@ -8,7 +8,7 @@
     "build": "npm start && go run ./dest/main.go",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Johnny Chen",
   "license": "ISC",
   "dependencies": {
     "esprima": "^4.0.1",

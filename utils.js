@@ -11,8 +11,10 @@ const TYPES = {
   ExpressionStatement: 'ExpressionStatement',
   ReturnStatement: 'ReturnStatement',
   CallExpression: 'CallExpression',
+  ArrayExpression: 'ArrayExpression',
   BinaryExpression: 'BinaryExpression',
-  Literal: 'Literal'
+  AssignmentExpression: 'AssignmentExpression',
+  MemberExpression: 'MemberExpression',
 }
 
 const ERRORS = {
@@ -66,10 +68,10 @@ const nameToType = (name) => {
   };
 }
 
-const convertElementToLine = (element, options = {}, parent) => {
+const convertElementToLine = function (element, options = {}, parent) {
   const { indent = '' } = options;
   let result = indent;
-  let objectName, propertyName, leftStr, rightStr;
+  let objectName, objectOperator, propertyName, leftStr, rightStr;
   switch (element && element.type) {
     case TYPES.Literal:
       objectValue = _.get(element, 'value', '');
@@ -78,18 +80,34 @@ const convertElementToLine = (element, options = {}, parent) => {
     case TYPES.Identifier:
       objectName = _.get(element, 'name', '');
       return objectName;
+    case TYPES.ArrayExpression:
+      elementsArrayExpression = _.get(element, 'elements', '');
+      rightStr = elementsArrayExpression
+        .map(e => convertElementToLine(e, options, element))
+        .join(', ');
+      return `{${rightStr}}`;
+      break;
     case TYPES.BinaryExpression: 
       objectOperator = _.get(element, 'operator', '');
+      console.log('objectOperator', objectOperator);
       leftObject = _.get(element, 'left', {});
       leftStr = convertElementToLine(leftObject, options, element);
       rightObject = _.get(element, 'right', {});
       rightStr = convertElementToLine(rightObject, options, element);
+      if (parent.type === TYPES.BinaryExpression) {
+        return `(${leftStr} ${objectOperator} ${rightStr})`;  
+      }
       return `${leftStr} ${objectOperator} ${rightStr}`;
       break;
     case TYPES.MemberExpression:
-      objectName = _.get(element, 'object.name', '');
-      propertyName = _.get(element, 'property.name', '');
-      return `${objectName}.${propertyName}`;
+      const computed = _.get(element, 'computed', false);
+      leftObject = _.get(element, 'object', {});
+      leftStr = convertElementToLine(leftObject, {}, element);
+      
+      rightObject = _.get(element, 'property', {});
+      rightStr = convertElementToLine(rightObject, {}, element);
+      console.log('MemberExpression', leftObject, leftStr, rightObject, rightStr)
+      return computed ? `${leftStr}[${rightStr}]` : `${leftStr}.${rightStr}`;
       break;
     case TYPES.CallExpression: 
       const callee = _.get(element, 'callee', {});
@@ -104,6 +122,12 @@ const convertElementToLine = (element, options = {}, parent) => {
       rightObject = _.get(element, 'argument', {});
       rightStr = convertElementToLine(rightObject, options, element);
       return `return ${rightStr}`;
+    case TYPES.AssignmentExpression:
+      leftObject = _.get(element, 'left', {});
+      leftStr = convertElementToLine(leftObject, {}, element);
+      rightObject = _.get(element, 'right', {});
+      rightStr = convertElementToLine(rightObject, {}, element);
+      return `${leftStr} = ${rightStr}`;
     case TYPES.ExpressionStatement:
       // detect console.log
       objectName = _.get(element, 'expression.callee.object.name', '');
@@ -119,10 +143,13 @@ const convertElementToLine = (element, options = {}, parent) => {
       objectName = _.get(element, 'id.name', '');
       objectValue = _.get(element, 'init', {});
       objectKind = _.get(parent, 'kind', '');
-      defType = objectKind === 'let' ? 'var' : 'const';
+      defType = objectKind === 'const' ? 'const' : 'var';
+      varType = nameToType(objectName);
       valStr = convertElementToLine(objectValue, options, element);
       if (objectName && objectValue) {
-        result = `${defType} ${objectName} = ${valStr}`;
+        result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
+      } else {
+        result = `${defType} ${varType.name} ${varType.type}`;
       }
       break;
     case TYPES.VariableDeclaration:
@@ -152,7 +179,7 @@ const convertFunctionElementCode = (element, options, parent) => {
 
   const funcType = nameToType(objectName);
   // build a function from template
-  const defineLine = indent + `func ${funcType.name}(${paramsStr}) ${funcType.type} {`
+  const defineLine = indent + `func ${funcType.name}(${paramsStr}) ${funcType.type}{`
   const noteLine = mIndent + '// TODO: please update types of params'
   const lines = ['', defineLine, noteLine, ...codes, indent + '}'];
   return lines.join("\n");
@@ -170,11 +197,7 @@ const convertProgramElementToCode = (element) => {
     .filter(e => !!e);
   const functionCode = linesOfFunction.join("\n");
 
-  const result = `
-package main\n
-import "fmt"\n\n
-${functionCode}
-  `;
+  const result = `package main\nimport "fmt"\n${functionCode}`;
 
   return result;
 }
