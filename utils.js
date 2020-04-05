@@ -71,7 +71,7 @@ const nameToType = (name) => {
 const convertElementToLine = function (element, options = {}, parent) {
   const { indent = '' } = options;
   let result = indent;
-  let objectName, objectOperator, propertyName, leftStr, rightStr;
+  let objectName, objectKind, objectValue, objectOperator, propertyName, leftStr, rightStr;
   switch (element && element.type) {
     case TYPES.Literal:
       objectValue = _.get(element, 'value', '');
@@ -143,9 +143,15 @@ const convertElementToLine = function (element, options = {}, parent) {
       objectKind = _.get(parent, 'kind', '');
       defType = objectKind === 'const' ? 'const' : 'var';
       varType = nameToType(objectName);
-      valStr = convertElementToLine(objectValue, options, element);
+      
       if (objectName && objectValue) {
-        result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
+        valStr = convertElementToLine(objectValue, options, element);
+        console.log('VariableDeclarator',valStr,objectValue)
+        if (objectValue.type === TYPES.ArrayExpression) {
+          result = `${varType.name} := [...]${varType.type}${valStr}`;
+        } else {
+          result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
+        }
       } else {
         result = `${defType} ${varType.name} ${varType.type}`;
       }
