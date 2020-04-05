@@ -89,7 +89,6 @@ const convertElementToLine = function (element, options = {}, parent) {
       break;
     case TYPES.BinaryExpression: 
       objectOperator = _.get(element, 'operator', '');
-      console.log('objectOperator', objectOperator);
       leftObject = _.get(element, 'left', {});
       leftStr = convertElementToLine(leftObject, options, element);
       rightObject = _.get(element, 'right', {});
@@ -106,7 +105,6 @@ const convertElementToLine = function (element, options = {}, parent) {
       
       rightObject = _.get(element, 'property', {});
       rightStr = convertElementToLine(rightObject, {}, element);
-      console.log('MemberExpression', leftObject, leftStr, rightObject, rightStr)
       return computed ? `${leftStr}[${rightStr}]` : `${leftStr}.${rightStr}`;
       break;
     case TYPES.CallExpression: 
@@ -210,7 +208,7 @@ const convertToFile  = (astTree, outputFile) => {
 
   fs.writeFile(outputFile, outputCode, function (err) {
     if (err) throw err;
-    console.log('Write output file done!');
+    logger.info('Write output file done!');
   });
 
   return outputCode;
