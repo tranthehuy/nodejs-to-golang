@@ -9,7 +9,11 @@ const TYPES = {
   VariableDeclarator: 'VariableDeclarator',
   FunctionDeclaration: 'FunctionDeclaration',
   ExpressionStatement: 'ExpressionStatement',
+  ForStatement: 'ForStatement',
+  IfStatement: 'IfStatement',
+  BlockStatement: 'BlockStatement',
   ReturnStatement: 'ReturnStatement',
+  UpdateExpression: 'UpdateExpression',
   CallExpression: 'CallExpression',
   ArrayExpression: 'ArrayExpression',
   BinaryExpression: 'BinaryExpression',
@@ -87,6 +91,12 @@ const convertElementToLine = function (element, options = {}, parent) {
         .join(', ');
       return `{${rightStr}}`;
       break;
+    case TYPES.UpdateExpression:
+      const prefix = _.get(element, 'prefix', false);
+      objectOperator = _.get(element, 'operator', '');
+      objectValue = _.get(element, 'argument.name', '');
+      return !prefix ? `${objectValue}${objectOperator}` : `${objectOperator}${objectValue}`;
+      break;
     case TYPES.BinaryExpression: 
       objectOperator = _.get(element, 'operator', '');
       leftObject = _.get(element, 'left', {});
@@ -146,12 +156,15 @@ const convertElementToLine = function (element, options = {}, parent) {
       
       if (objectName && objectValue) {
         valStr = convertElementToLine(objectValue, options, element);
-        console.log('VariableDeclarator',valStr,objectValue)
         if (objectValue.type === TYPES.ArrayExpression) {
           result = `${varType.name} := [...]${varType.type}${valStr}`;
-        } else {
-          result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
+          break;
+        } 
+        if (objectKind === 'let') {
+          result = `${varType.name} := ${valStr}`;
+          break;
         }
+        result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
       } else {
         result = `${defType} ${varType.name} ${varType.type}`;
       }
@@ -163,17 +176,56 @@ const convertElementToLine = function (element, options = {}, parent) {
     case TYPES.FunctionDeclaration:
       result = convertFunctionElementCode(element, options, parent);
       break;
+    case TYPES.BlockStatement: 
+      result = convertBlockElementCode = (element, options, parent);
+      break;
+    case TYPES.IfStatement:
+      const test = _.get(element, 'test', {});
+      const testStr = convertElementToLine (test, {}, element);
+      const consequent = _.get(element, 'consequent', {});
+      const consequentStr = convertBlockElementCode (consequent, options, element);
+      const alternate = _.get(element, 'alternate', {});
+      const alternateStr = convertBlockElementCode (alternate, options, element);
+      result = `if ${testStr} {
+${consequentStr}
+${indent}} else {
+${alternateStr}
+${indent}}`
+      break;
+    case TYPES.ForStatement:
+      const forInit = _.get(element, 'init', {});
+      const forTest = _.get(element, 'test', {});
+      const forUpdate = _.get(element, 'update', {});
+      const forBody = _.get(element, 'body', {});
+      const forInitStr = convertElementToLine (forInit, {}, element);
+      const forTestStr = convertElementToLine (forTest, {}, element);
+      const forUpdateStr = convertElementToLine (forUpdate, {}, element);
+      const forBodyStr = convertBlockElementCode (forBody, options, element);
+      result = `for ${forInitStr}; ${forTestStr}; ${forUpdateStr} {
+${forBodyStr}
+${indent}}`
+      break;
   }
   return result;
 };
 
+const convertBlockElementCode = (element, options, parent) => {
+  const { indent = '', returnType = 'text' } = options;
+  const mIndent = indent + '  ';
+  const elements = _.get(element, 'body', []);
+  const codes = elements.map(e => mIndent + convertElementToLine(e, { indent: mIndent }));
+  if (returnType === 'array') {
+    return codes;
+  }
+  return codes.join("\n");
+}
+
 const convertFunctionElementCode = (element, options, parent) => {
   const { indent = '' } = options;
-  const mIndent = indent + '  ';
   const objectName = _.get(element, 'id.name', '');
   const objectParams = _.get(element, 'params', []);
-  const elements = _.get(element, 'body.body', []);
-  const codes = elements.map(e => mIndent + convertElementToLine(e, { indent: mIndent }));
+  const elements = _.get(element, 'body', {});
+  const codes = convertBlockElementCode(elements, { indent, returnType: 'array' });
 
   const fromNameToDefinition = (name) => {
     const o = nameToType(name);
@@ -184,7 +236,7 @@ const convertFunctionElementCode = (element, options, parent) => {
   const funcType = nameToType(objectName);
   // build a function from template
   const defineLine = indent + `func ${funcType.name}(${paramsStr}) ${funcType.type}{`
-  const noteLine = mIndent + '// TODO: please update types of params'
+  const noteLine = indent + '  // TODO: please update types of params'
   const lines = ['', defineLine, noteLine, ...codes, indent + '}'];
   return lines.join("\n");
 }
