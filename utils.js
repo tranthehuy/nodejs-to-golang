@@ -9,6 +9,7 @@ const TYPES = {
   VariableDeclarator: 'VariableDeclarator',
   FunctionDeclaration: 'FunctionDeclaration',
   ExpressionStatement: 'ExpressionStatement',
+  ReturnStatement: 'ReturnStatement',
   CallExpression: 'CallExpression',
   BinaryExpression: 'BinaryExpression',
   Literal: 'Literal'
@@ -27,23 +28,48 @@ const buildLogExpression = (element) => {
   const propertyName = _.get(element, 'expression.callee.property.name', '');
   if (objectName === 'console' && propertyName === 'log') {
     const arguments = _.get(element, 'expression.arguments', []);
-    const argument = arguments.map(arg => arg.type === TYPES.Literal ? `"${arg.value}"` : arg.name);
+    const argument = arguments.map(arg => convertElementToLine(arg, {}, element));
     return `fmt.Println(${argument.join(', ')})`;
   }
   return '';
 }
 
-const buildCallExpression = (element) => {
-  const objectName = _.get(element, 'expression.callee.name', '');
-  const arguments = _.get(element, 'expression.arguments', []);
-  const argument = arguments.map(arg => arg.type === TYPES.Literal ? `"${arg.value}"` : arg.name);
-  return `${objectName}(${argument.join(', ')})`;
+const nameToType = (name) => {
+  if (name.includes('_')) {
+    const arr = name.split('_');
+    if (arr[1] === 'arr' || arr[1] === 'array') {
+      return {
+        name,
+        type: `[${arr[2]}]${arr[3]}`
+      }
+    }
+    return {
+      name,
+      type: arr[1]
+    }
+  }
+  if (name.startsWith('int')) {
+    return {
+      name,
+      type: 'int',
+    };
+  }
+  if (name === 'main') {
+    return {
+      name,
+      type: '',
+    };
+  }
+  return {
+    name,
+    type: 'string',
+  };
 }
 
 const convertElementToLine = (element, options = {}, parent) => {
   const { indent = '' } = options;
   let result = indent;
-  let objectName, objectType, propertyName;
+  let objectName, propertyName, leftStr, rightStr;
   switch (element && element.type) {
     case TYPES.Literal:
       objectValue = _.get(element, 'value', '');
@@ -60,6 +86,24 @@ const convertElementToLine = (element, options = {}, parent) => {
       rightStr = convertElementToLine(rightObject, options, element);
       return `${leftStr} ${objectOperator} ${rightStr}`;
       break;
+    case TYPES.MemberExpression:
+      objectName = _.get(element, 'object.name', '');
+      propertyName = _.get(element, 'property.name', '');
+      return `${objectName}.${propertyName}`;
+      break;
+    case TYPES.CallExpression: 
+      const callee = _.get(element, 'callee', {});
+      const calleeStr = convertElementToLine(callee, options, element);
+      const args = _.get(element, 'arguments', []);
+      const argumentStr = args
+        .map(arg => convertElementToLine(arg, {}, element))
+        .join(', ');
+      return `${calleeStr}(${argumentStr})`
+      break;
+    case TYPES.ReturnStatement:
+      rightObject = _.get(element, 'argument', {});
+      rightStr = convertElementToLine(rightObject, options, element);
+      return `return ${rightStr}`;
     case TYPES.ExpressionStatement:
       // detect console.log
       objectName = _.get(element, 'expression.callee.object.name', '');
@@ -68,15 +112,15 @@ const convertElementToLine = (element, options = {}, parent) => {
         result = buildLogExpression(element);
         break;
       }
-      result = buildCallExpression(element);
+      const exp = _.get(element, 'expression', {});
+      result = convertElementToLine(exp, options, element);
       break;
     case TYPES.VariableDeclarator:
       objectName = _.get(element, 'id.name', '');
-      objectInit = _.get(element, 'init', {});
-      objectType = _.get(element, 'init.type', '');
+      objectValue = _.get(element, 'init', {});
       objectKind = _.get(parent, 'kind', '');
       defType = objectKind === 'let' ? 'var' : 'const';
-      valStr = convertElementToLine(objectInit, options, element);
+      valStr = convertElementToLine(objectValue, options, element);
       if (objectName && objectValue) {
         result = `${defType} ${objectName} = ${valStr}`;
       }
@@ -99,11 +143,18 @@ const convertFunctionElementCode = (element, options, parent) => {
   const objectParams = _.get(element, 'params', []);
   const elements = _.get(element, 'body.body', []);
   const codes = elements.map(e => mIndent + convertElementToLine(e, { indent: mIndent }));
-  const paramsStr = objectParams.map(p => p.name + ' string').join(', ');
-  const defineLine = indent + `func ${objectName}(${paramsStr}) {`
+
+  const fromNameToDefinition = (name) => {
+    const o = nameToType(name);
+    return `${o.name} ${o.type}`;
+  }
+  const paramsStr = objectParams.map(p => fromNameToDefinition(p.name)).join(', ');
+
+  const funcType = nameToType(objectName);
+  // build a function from template
+  const defineLine = indent + `func ${funcType.name}(${paramsStr}) ${funcType.type} {`
   const noteLine = mIndent + '// TODO: please update types of params'
   const lines = ['', defineLine, noteLine, ...codes, indent + '}'];
-
   return lines.join("\n");
 }
 
