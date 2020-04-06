@@ -126,16 +126,16 @@ const convertElementToLine = function (element, options = {}, parent) {
         .join(', ');
       return `${calleeStr}(${argumentStr})`
       break;
-    case TYPES.ReturnStatement:
-      rightObject = _.get(element, 'argument', {});
-      rightStr = convertElementToLine(rightObject, options, element);
-      return `return ${rightStr}`;
     case TYPES.AssignmentExpression:
       leftObject = _.get(element, 'left', {});
       leftStr = convertElementToLine(leftObject, {}, element);
       rightObject = _.get(element, 'right', {});
       rightStr = convertElementToLine(rightObject, {}, element);
       return `${leftStr} = ${rightStr}`;
+    case TYPES.ReturnStatement:
+      rightObject = _.get(element, 'argument', {});
+      rightStr = convertElementToLine(rightObject, options, element);
+      return `return ${rightStr}`;
     case TYPES.ExpressionStatement:
       // detect console.log
       objectName = _.get(element, 'expression.callee.object.name', '');
@@ -163,6 +163,13 @@ const convertElementToLine = function (element, options = {}, parent) {
         if (objectKind === 'let') {
           result = `${varType.name} := ${valStr}`;
           break;
+        }
+
+        if (objectKind === 'const') {
+          if (objectValue.type === TYPES.CallExpression && _.get(objectValue, 'callee.name', '') === 'require') {
+            result = `import (${varType.name} "${_.get(objectValue, 'arguments[0].value', '')}")`;
+            break;
+          }
         }
         result = `${defType} ${varType.name} ${varType.type} = ${valStr}`;
       } else {
