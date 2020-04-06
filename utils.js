@@ -10,6 +10,7 @@ const TYPES = {
   FunctionDeclaration: 'FunctionDeclaration',
   ExpressionStatement: 'ExpressionStatement',
   ForStatement: 'ForStatement',
+  WhileStatement: 'WhileStatement',
   IfStatement: 'IfStatement',
   BlockStatement: 'BlockStatement',
   ReturnStatement: 'ReturnStatement',
@@ -210,6 +211,15 @@ ${indent}}`
       const forBodyStr = convertBlockElementCode (forBody, options, element);
       result = `for ${forInitStr}; ${forTestStr}; ${forUpdateStr} {
 ${forBodyStr}
+${indent}}`
+      break;
+    case TYPES.WhileStatement:
+      const whileTest = _.get(element, 'test', {});
+      const whileBody = _.get(element, 'body', {});
+      const whileTestStr = convertElementToLine (whileTest, {}, element);
+      const whileBodyStr = convertBlockElementCode (whileBody, options, element);
+      result = `for ${whileTestStr} {
+${whileBodyStr}
 ${indent}}`
       break;
   }
