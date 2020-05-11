@@ -35,8 +35,50 @@ func main() {
 }
 ```
 
-## 2. Structure
+## 2. Name includes type of variables
 
 Please notice that `var sum_int = 0` will become `var sum_int int = 0`.
 
 Because `sum_int` has `_int`, it knew as `int` type.
+
+## 3. Example with function
+
+It maps `console.log` to `fmt.Println`
+
+Input:
+
+```
+function foo_array_3_int(a_int, b_int) {
+  let result_int = [0,1,2]
+  result_int[0] = a_int
+  result_int[1] = b_int
+  result_int[2] = b_int + a_int
+  return result_int
+}
+
+function main() {
+  console.log(foo_array_3_int(1,3))
+}
+```
+
+Output:
+
+```
+// created by Johnny Chen tools
+package main
+import "fmt"
+
+func foo_array_3_int(a_int int, b_int int) [3]int{
+  // TODO: please update types of params
+  result_int := [...]int{0, 1, 2}
+  result_int[0] = a_int
+  result_int[1] = b_int
+  result_int[2] = b_int + a_int
+  return result_int
+}
+
+func main() {
+  // TODO: please update types of params
+  fmt.Println(foo_array_3_int(1, 3))
+}
+```
